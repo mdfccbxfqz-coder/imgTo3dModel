@@ -27,13 +27,14 @@ GUI.
 
 Usage
 Run from CLI:
-python imgTo3dModel.py path/to/image_or_folder --backend triposr
+python imgTo3dModel.py path/to/image_or_folder --backend triposr --format obj
 Start the GUI:
 python gui.py
 
 Output Options
 Default: TripoSR single-image mesh reconstruction ( .obj )
 Optional: Instant-NGP for multi-view reconstruction ( --backend instantngp )
+Choose output format via --format {obj, fbx, glb}
 
 Notes
 Ensure Instant-NGP binary is in your system PATH.
