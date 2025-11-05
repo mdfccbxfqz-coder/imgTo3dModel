@@ -1,0 +1,6 @@
+diffusers>=0.30.0
+transformers>=4.36.0
+huggingface_hub>=0.22.2
+torch>=2.1.0
+triposr>=0.1.0
+gradiov>=4.0.0
