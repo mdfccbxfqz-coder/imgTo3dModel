@@ -26,9 +26,15 @@ GUI.
    pip install -e ../zero123plus
 
 Usage
-Single image:
-python imgTo3dModel.py path/to/image.jpg outputs/ --steps 50
-Folder (batch):
-python imgTo3dModel.py path/to/folder outputs/ --mesh --batch-size 2
+Run from CLI:
+python imgTo3dModel.py path/to/image_or_folder --backend triposr
 Start the GUI:
 python gui.py
+
+Output Options
+Default: TripoSR single-image mesh reconstruction ( .obj )
+Optional: Instant-NGP for multi-view reconstruction ( --backend instantngp )
+
+Notes
+Ensure Instant-NGP binary is in your system PATH.
+TripoSR works best for single images; Instant-NGP provides smoother, higher-fidelity meshes when trained on multi-view outputs.
