@@ -1,6 +1,9 @@
-diffusers>=0.30.0
-transformers>=4.36.0
-huggingface_hub>=0.22.2
 torch>=2.1.0
-triposr>=0.1.0
-gradiov>=4.0.0
+torchvision>=0.16.0
+diffusers>=0.31.0
+transformers>=4.45.0
+huggingface-hub>=0.24.0
+accelerate>=0.32.0
+gradio>=4.31.0
+loguru>=0.7.2
+git+https://github.com/VAST-AI-Research/TripoSR.git

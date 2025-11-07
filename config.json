@@ -1,0 +1,5 @@
+{
+  "instant_ngp_path": "C:/Tools/instant-ngp/instant-ngp.exe",
+  "default_output_format": "glb",
+  "default_pipeline": "triposr"
+}
