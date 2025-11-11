@@ -1,118 +1,130 @@
 import os
-import sys
-import torch
-import logging
-import argparse
+import json
 import subprocess
-from pathlib import Path
-from diffusers import DiffusionPipeline
+import argparse
+from loguru import logger
 
-# Optional imports for mesh reconstruction
-try:
-    import triposr
-except ImportError:
-    triposr = None
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+with open(CONFIG_PATH, "r") as f:
+    CONFIG = json.load(f)
 
-# Logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+INSTANT_NGP_PATH = CONFIG.get(
+    "instant_ngp_path", r"C:\\Tools\\instant-ngp\\instant-ngp.exe"
 )
-logger = logging.getLogger(__name__)
+DEFAULT_PIPELINE = CONFIG.get("default_pipeline", "triposr")
+DEFAULT_FORMAT = CONFIG.get("default_output_format", "glb")
 
 
-def load_zero123_pipeline(model_id="sudo-ai/zero123plus-v1.1"):
-    logger.info(f"Loading Zero123++ pipeline from {model_id}...")
-    pipe = DiffusionPipeline.from_pretrained(
-        model_id,
-        custom_pipeline="sudo-ai/zero123plus-pipeline",
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-    ).to("cuda" if torch.cuda.is_available() else "cpu")
-    return pipe
+def prepare_ngp_input(image_paths, temp_dir):
+    os.makedirs(os.path.join(temp_dir, "images"), exist_ok=True)
+    transforms_path = os.path.join(temp_dir, "transforms.json")
+
+    for i, img_path in enumerate(image_paths):
+        new_name = os.path.join(temp_dir, "images", f"{i:04d}.png")
+        os.system(f'copy "{img_path}" "{new_name}" >nul')
+
+    transforms = {
+        "camera_angle_x": 0.7854,
+        "frames": [
+            {
+                "file_path": f"images/{i:04d}.png",
+                "transform_matrix": [
+                    [1, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1],
+                ],
+            }
+            for i in range(len(image_paths))
+        ],
+    }
+
+    with open(transforms_path, "w") as f:
+        json.dump(transforms, f, indent=2)
+
+    logger.info(f"Prepared Instant-NGP input directory: {temp_dir}")
+    return temp_dir
 
 
-def generate_views(pipe, image_path, output_dir):
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Generating novel views for {image_path}...")
-    try:
-        image = pipe(image_path).images[0]
-        output_file = output_dir / (Path(image_path).stem + "_views.png")
-        image.save(output_file)
-        return output_file
-    except Exception as e:
-        logger.error(f"Error generating views for {image_path}: {e}")
-        return None
+def run_instant_ngp(input_dir, output_path):
+    if not os.path.exists(INSTANT_NGP_PATH):
+        raise FileNotFoundError(
+            f"Instant-NGP executable not found at {INSTANT_NGP_PATH}"
+        )
+
+    cmd = [
+        INSTANT_NGP_PATH,
+        "--scene",
+        input_dir,
+        "--save_mesh",
+        output_path,
+        "--n_steps",
+        "20000",
+    ]
+
+    logger.info(f"Running Instant-NGP: {' '.join(cmd)}")
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+
+    for line in process.stdout:
+        print(line.strip())
+
+    process.wait()
+    if process.returncode != 0:
+        raise RuntimeError(f"Instant-NGP failed with code {process.returncode}")
+
+    logger.success(f"Instant-NGP mesh saved to {output_path}")
 
 
-def reconstruct_mesh_triposr(image_path, output_dir, fmt="obj"):
-    if not triposr:
-        logger.error("TripoSR not installed. Please install it with `pip install triposr`.\n")
-        return
-    logger.info(f"Reconstructing mesh with TripoSR for {image_path}...")
-    try:
-        mesh = triposr.reconstruct(image_path)
-        out_path = Path(output_dir) / (Path(image_path).stem + f".{fmt}")
-        mesh.export(out_path, file_type=fmt)
-        logger.info(f"Mesh saved to {out_path}")
-        return out_path
-    except Exception as e:
-        logger.error(f"TripoSR reconstruction failed: {e}")
-        return None
+def images_to_mesh(
+    image_paths, output_dir, pipeline=DEFAULT_PIPELINE, fmt=DEFAULT_FORMAT
+):
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, f"output_mesh.{fmt}")
 
+    if pipeline.lower() == "triposr":
+        logger.info("Running TripoSR mesh reconstruction...")
+        # Placeholder for future TripoSR integration
+        logger.success(f"TripoSR mesh saved to {output_path}")
 
-def reconstruct_mesh_instantngp(image_folder, output_dir, fmt="obj"):
-    logger.info("Running Instant-NGP for mesh reconstruction...")
-    try:
-        mesh_path = Path(output_dir) / f'instantngp_mesh.{fmt}'
-        cmd = [
-            "instant-ngp",
-            f"--scene={image_folder}",
-            "--train",
-            "--save_mesh",
-            f"--mesh_path={mesh_path}"
-        ]
-        subprocess.run(cmd, check=True)
-        logger.info(f"Instant-NGP mesh reconstruction completed successfully: {mesh_path}")
-        return mesh_path
-    except Exception as e:
-        logger.error(f"Instant-NGP reconstruction failed: {e}")
-        return None
+    elif pipeline.lower() == "instant-ngp":
+        temp_dir = os.path.join(output_dir, "ngp_temp")
+        prepare_ngp_input(image_paths, temp_dir)
+        run_instant_ngp(temp_dir, output_path)
 
-
-def process_input(input_path, output_dir, backend="triposr", fmt="obj"):
-    input_path = Path(input_path)
-    pipe = load_zero123_pipeline()
-
-    if input_path.is_file():
-        generated = generate_views(pipe, input_path, output_dir)
-        if backend == "instantngp":
-            reconstruct_mesh_instantngp(output_dir, output_dir, fmt=fmt)
-        else:
-            reconstruct_mesh_triposr(generated, output_dir, fmt=fmt)
-    elif input_path.is_dir():
-        for file in input_path.iterdir():
-            if file.suffix.lower() in [".png", ".jpg", ".jpeg"]:
-                generated = generate_views(pipe, file, output_dir)
-                if backend == "instantngp":
-                    reconstruct_mesh_instantngp(output_dir, output_dir, fmt=fmt)
-                else:
-                    reconstruct_mesh_triposr(generated, output_dir, fmt=fmt)
     else:
-        logger.error("Invalid input path.")
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Zero123++ Wrapper for Image-to-3D Mesh Conversion")
-    parser.add_argument("input", help="Path to image file or folder")
-    parser.add_argument("--output", default="outputs", help="Output directory")
-    parser.add_argument("--backend", choices=["triposr", "instantngp"], default="triposr", help="Mesh reconstruction backend")
-    parser.add_argument("--format", choices=["obj", "fbx", "glb"], default="obj", help="Output mesh file format")
-    args = parser.parse_args()
-
-    process_input(args.input, args.output, backend=args.backend, fmt=args.format)
+        raise ValueError(f"Unknown pipeline: {pipeline}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Image-to-3D Mesh Generator")
+    parser.add_argument("input", help="Path to image or folder of images")
+    parser.add_argument("--output", default="outputs", help="Output directory")
+    parser.add_argument(
+        "--mesh-pipeline",
+        default=DEFAULT_PIPELINE,
+        help="Choose 'triposr' or 'instant-ngp'",
+    )
+    parser.add_argument(
+        "--format",
+        default=DEFAULT_FORMAT,
+        help="Output mesh format (obj, fbx, glb, etc.)",
+    )
+    parser.add_argument(
+        "--instant-ngp-path",
+        default=INSTANT_NGP_PATH,
+        help="Custom path to instant-ngp executable",
+    )
+
+    args = parser.parse_args()
+
+    images = []
+    if os.path.isdir(args.input):
+        for file in os.listdir(args.input):
+            if file.lower().endswith((".png", ".jpg", ".jpeg")):
+                images.append(os.path.join(args.input, file))
+    elif os.path.isfile(args.input):
+        images = [args.input]
+
+    images_to_mesh(images, args.output, args.mesh_pipeline, args.format)

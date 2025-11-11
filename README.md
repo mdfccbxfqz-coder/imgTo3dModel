@@ -25,9 +25,32 @@ GUI.
 1. (Optional) Install zero123plus in editable mode if you cloned it locally:
    pip install -e ../zero123plus
 
+Setting up Instant-NGP
+
+1.  Download a prebuilt binary from https://github.com/NVlabs/instant-ngp/releases
+2.  Extract it to a folder (e.g., C:\Tools\instant-ngp\)
+3.  Update the config.json path accordingly.
+
+Expected Directory Structure:
+ngp_temp/
+│── images/
+│ ├── 0000.png
+│ ├── 0001.png
+│ └── ...
+│── transforms.json
+
 Usage
+
 Run from CLI:
-python imgTo3dModel.py path/to/image_or_folder --backend triposr --format obj
+
+# Default TripoSR pipeline
+
+python imgTo3dModel.py input.jpg
+
+# Use Instant-NGP instead
+
+python imgTo3dModel.py input_folder/ --mesh-pipeline instant-ngp --format obj
+
 Start the GUI:
 python gui.py
 
