@@ -3,7 +3,7 @@ import os
 from imgTo3dModel import images_to_mesh, DEFAULT_PIPELINE, DEFAULT_FORMAT
 
 
-def run_pipeline(input_images, pipeline, fmt):
+def run_pipeline(input_images, pipeline, fmt, generate_views, mesh_only, output_name):
     output_dir = "outputs"
     image_paths = []
     for img in input_images:
@@ -11,17 +11,27 @@ def run_pipeline(input_images, pipeline, fmt):
         img.save(path)
         image_paths.append(path)
 
-    images_to_mesh(image_paths, output_dir, pipeline, fmt)
-    result_file = os.path.join(output_dir, f"output_mesh.{fmt}")
-    return result_file
+    result = images_to_mesh(
+        image_paths[0] if len(image_paths) == 1 else output_dir,
+        output_dir,
+        pipeline=pipeline,
+        fmt=fmt,
+        generate_views=generate_views,
+        output_name=output_name,
+        mesh_only=not mesh_only,
+    )
+
+    if isinstance(result, list):
+        return "\n".join(result)
+    return result
 
 
 with gr.Blocks(title="Img to 3D Model Generator") as demo:
-    gr.Markdown("## 🧩 Image to 3D Mesh Generator")
+    gr.Markdown("## 🧩 Image to 3D Mesh Generator (Zero123++, TripoSR, Instant-NGP)")
 
     with gr.Row():
         input_images = gr.File(
-            label="Upload Input Images", file_count="multiple", type="filepath"
+            label="Upload Input Image(s)", file_count="multiple", type="filepath"
         )
 
     with gr.Row():
@@ -34,11 +44,23 @@ with gr.Blocks(title="Img to 3D Model Generator") as demo:
             ["obj", "fbx", "glb"], value=DEFAULT_FORMAT, label="Output Format"
         )
 
-    generate_btn = gr.Button("Generate 3D Model")
-    result_view = gr.File(label="Generated 3D Mesh")
+    with gr.Row():
+        generate_views = gr.Checkbox(label="Generate Views (Zero123++)", value=True)
+        mesh_only = gr.Checkbox(
+            label="Generate Mesh (unchecked = images only)", value=True
+        )
+        output_name = gr.Textbox(
+            label="Custom Output Name (optional)",
+            placeholder="Leave blank for auto-naming",
+        )
+
+    generate_btn = gr.Button("Generate")
+    result_view = gr.File(label="Generated Output")
 
     generate_btn.click(
-        fn=run_pipeline, inputs=[input_images, pipeline, fmt], outputs=result_view
+        fn=run_pipeline,
+        inputs=[input_images, pipeline, fmt, generate_views, mesh_only, output_name],
+        outputs=result_view,
     )
 
 demo.launch()

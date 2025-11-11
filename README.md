@@ -4,12 +4,33 @@
 
 Project to create a 3D model from a provided image or images.
 
-This repo provides a starter wrapper to run the Zero123Plus diffusion-based
-multi-view generator and glue it into a small pipeline that can batch-process
-folders, optionally export meshes (placeholder), and provide a simple Gradio
-GUI.
+Overview:
+This tool enables single-image or multi-image to 3D mesh generation. It uses Zero123++ for novel view synthesis and TripoSR or Instant-NGP for mesh reconstruction.
+
+Key Features:
+Optional view generation via Zero123++
+TripoSR and Instant-NGP mesh reconstruction
+Automatic output naming (inputname_triposr.glb)
+Configurable Instant-NGP path
+Live progress logs for Instant-NGP
+Full CLI and GUI interfaces
+
+Project structure:
+imgTo3dModel/
+├── imgTo3dModel.py # Main wrapper script (CLI + core logic)
+├── gui.py # Gradio GUI interface
+├── config.json # Configuration file
+├── requirements.txt # Python dependencies
+├── README.md # Documentation
+└── outputs/ # Generated image & mesh outputs
 
 ## Setup
+
+config.json defines:
+Path to the prebuilt Instant-NGP executable
+Default mesh export format
+Default mesh pipeline
+Whether to auto-generate new views with Zero123++
 
 1. Create a Python venv (recommended):
 
@@ -43,16 +64,28 @@ Usage
 
 Run from CLI:
 
-# Default TripoSR pipeline
+## Generate both images and mesh (TripoSR)
 
-python imgTo3dModel.py input.jpg
+python imgTo3dModel.py input.jpg --generate-views
 
-# Use Instant-NGP instead
+# Generate images only
 
-python imgTo3dModel.py input_folder/ --mesh-pipeline instant-ngp --format obj
+python imgTo3dModel.py input.jpg --generate-views --images-only
+
+# Use Instant-NGP and specify format + custom name
+
+python imgTo3dModel.py input_folder/ --mesh-pipeline instant-ngp --format obj --output-name sample_mesh
 
 Start the GUI:
 python gui.py
+
+GUI features:
+Upload images
+Select pipeline (TripoSR / Instant-NGP)
+Choose format (obj / fbx / glb)
+Toggle view generation (Zero123++)
+Toggle mesh generation
+Custom output name support
 
 Output Options
 Default: TripoSR single-image mesh reconstruction ( .obj )
